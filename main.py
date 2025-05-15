@@ -1,207 +1,201 @@
 import telebot
-from telebot import types
 import requests
 import json
 import os
+import time
 from datetime import datetime, timedelta
 
+# بيانات البوت
+TOKEN = '7269311808:AAEcmQCbgh9jcZAl66oWYXi0fh3dyu4nWOw'
+ADMIN_ID = '5000510953'
+PROOF_CHANNEL_ID = -1002604421435
+FORCE_SUB_CHANNEL = "zeedtek"
+DJZ_REGISTRATION_URL = 'https://apim.djezzy.dz/oauth2/registration'
+DJZ_TOKEN_URL = 'https://apim.djezzy.dz/oauth2/token'
+
 # إعدادات البروكسي
-proxies = {
-    'http': 'http://g98avle2nnibnw7-country-dz:jb234f4wt1159yn@rp.scrapegw.com:6060',
-    'https': 'http://g98avle2nnibnw7-country-dz:jb234f4wt1159yn@rp.scrapegw.com:6060'
+PROXIES = {
+    'http': 'http://4ozf98d598meqlt-country-dz:whdeajejjowefz3@rp.scrapegw.com:6060',
+    'https': 'http://4ozf98d598meqlt-country-dz:whdeajejjowefz3@rp.scrapegw.com:6060'
 }
 
-# تحقق من أن البروكسي يعمل
-try:
-    test = requests.get("http://ip-api.com/json", proxies=proxies, timeout=10)
-    print("✅ Proxy IP:", test.json().get("query"))
-except Exception as e:
-    print("❌ فشل الاتصال عبر البروكسي:", e)
-
-TOKEN = '7269311808:AAH-cyNdhw7twKXbql5NAYrfPs3s8K61x8k'
-CHANNEL_USERNAME = 'zeedtek'
-CHANNEL_LINK = f'https://t.me/{CHANNEL_USERNAME}'
-ADMIN_ID = '5000510953'
-bot = telebot.TeleBot(TOKEN)
-data_file_path = 'djezzy_data.json'
-
-def load_user_data():
-    if os.path.exists(data_file_path):
-        with open(data_file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    return {}
-
-def save_user_data(data):
-    with open(data_file_path, 'w', encoding='utf-8') as file:
-        json.dump(data, file, indent=4)
-
-def is_user_subscribed(user_id):
+# طباعة IP المتصل به
+def print_current_ip():
     try:
-        member = bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
-        return member.status in ['member', 'creator', 'administrator']
-    except:
-        return False
+        ip = requests.get("http://ipinfo.io/ip", proxies=PROXIES).text.strip()
+        print(f"عنوان IP الحالي المستخدم: {ip}")
+    except Exception as e:
+        print(f"خطأ في جلب IP: {e}")
 
-def hide_phone_number(phone_number):
-    return phone_number[:4] + '*******' + phone_number[-2:]
+bot = telebot.TeleBot(TOKEN)
+data_file = 'users.json'
+
+def load_data():
+    try:
+        return json.load(open(data_file, 'r', encoding='utf-8')) if os.path.exists(data_file) else {}
+    except Exception as e:
+        print("خطأ في تحميل البيانات:", e)
+        return {}
+
+def save_data(data):
+    try:
+        json.dump(data, open(data_file, 'w', encoding='utf-8'), indent=2)
+    except Exception as e:
+        print("خطأ في حفظ البيانات:", e)
+
+def hide_number(phone):
+    return phone[:4] + '***' + phone[-2:]
+
+def is_subscribed(user_id):
+    try:
+        member = bot.get_chat_member(f"@{FORCE_SUB_CHANNEL}", user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except Exception as e:
+        print(f"خطأ في التحقق من الاشتراك: {e}")
+        return False
 
 @bot.message_handler(commands=['start'])
-def handle_start(msg):
-    chat_id = msg.chat.id
-    user_id = msg.from_user.id
+def start(msg):
+    try:
+        if not is_subscribed(msg.from_user.id):
+            join_msg = (
+                "📢 للاستخدام، يجب عليك الاشتراك في القناة أولاً:\n"
+                f"@{FORCE_SUB_CHANNEL}\n\n"
+                "✅ بعد الاشتراك، اضغط /start مرة أخرى."
+            )
+            btn = telebot.types.InlineKeyboardMarkup()
+            btn.add(telebot.types.InlineKeyboardButton("الاشتراك في القناة", url=f"https://t.me/{FORCE_SUB_CHANNEL}"))
+            bot.send_message(msg.chat.id, join_msg, reply_markup=btn)
+            return
 
-    if not is_user_subscribed(user_id):
-        markup = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton("✅ اشترك الآن في القناة", url=CHANNEL_LINK)
-        markup.add(btn)
-        bot.send_photo(
-            chat_id,
-            photo='https://telegra.ph/file/cf4a0d3e021caa99e3ba7.jpg',
-            caption=(
-                "✳️ *مرحبًا بك في بوت Zeed Tek!*\n\n"
-                "> قناة [Zeed Tek](https://t.me/zeedtek) تقدم لك:\n"
-                "• خدمات انترنت مجانية.\n"
-                "• عروض وهدايا حصرية لمستخدمي Djezzy.\n\n"
-                "*اشترك أولاً في القناة لتبدأ!*"
-            ),
-            reply_markup=markup,
-            parse_mode='Markdown'
-        )
-        return
+        markup = telebot.types.ForceReply(selective=False)
+        welcome = "مرحبا بك في بوت aissa"
+        bot.send_message(msg.chat.id, welcome, reply_markup=markup)
+        bot.register_next_step_handler_by_chat_id(msg.chat.id, get_number)
+    except Exception as e:
+        print(f"خطأ في دالة start: {e}")
 
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("🎁 احصل على هديتك", callback_data='walkwingift'),
-        types.InlineKeyboardButton("📱 إرسال رقم الهاتف", callback_data='send_number')
-    )
-
-    bot.send_message(
-        chat_id,
-        "✨ *مرحبًا بك من جديد!*\n\n"
-        "• اضغط على الزر المناسب لبدء استخدام البوت.",
-        parse_mode='Markdown',
-        reply_markup=markup
-    )
-
-@bot.callback_query_handler(func=lambda call: call.data == 'send_number')
-def handle_send_number(callback_query):
-    chat_id = callback_query.message.chat.id
-    bot.send_message(chat_id, '📱 أرسل رقم هاتفك Djezzy الذي يبدأ بـ 07:')
-    bot.register_next_step_handler_by_chat_id(chat_id, handle_phone_number)
+def get_number(msg):
+    try:
+        number = msg.text.strip()
+        if number.startswith("07") and len(number) == 10:
+            msisdn = "213" + number[1:]
+            if send_otp(msisdn):
+                bot.send_message(msg.chat.id, "تم إرسال رقم OTP مكون من 6 ارقام يرجا إدخاله بشكل صحيح✅🔠:")
+                bot.register_next_step_handler_by_chat_id(msg.chat.id, lambda m: verify(m, msisdn))
+            else:
+                bot.send_message(msg.chat.id, "فشل إرسال OTP، حاول مجدداً.")
+        else:
+            bot.send_message(msg.chat.id, "رقم غير صحيح. أعد الإرسال.")
+    except Exception as e:
+        print(f"خطأ في دالة get_number: {e}")
+        bot.send_message(msg.chat.id, "حدث خطأ، حاول مرة أخرى.")
 
 def send_otp(msisdn):
-    url = 'https://apim.djezzy.dz/oauth2/registration'
     payload = f'msisdn={msisdn}&client_id=6E6CwTkp8H1CyQxraPmcEJPQ7xka&scope=smsotp'
-    headers = {
-        'User-Agent': 'Djezzy/2.6.7',
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
+    headers = {'User-Agent': 'Djezzy/2.6.7', 'Content-Type': 'application/x-www-form-urlencoded'}
     try:
-        response = requests.post(url, data=payload, headers=headers, proxies=proxies, verify=False)
-        return response.status_code == 200
-    except:
+        res = requests.post(DJZ_REGISTRATION_URL, data=payload, headers=headers, proxies=PROXIES)
+        return res.status_code == 200
+    except Exception as e:
+        print(f"خطأ في send_otp: {e}")
         return False
 
-def handle_phone_number(msg):
-    chat_id = msg.chat.id
-    text = msg.text
-    if text.startswith('07') and len(text) == 10:
-        msisdn = '213' + text[1:]
-        if send_otp(msisdn):
-            bot.send_message(chat_id, '🔢 تم إرسال رمز OTP. أدخله الآن:')
-            bot.register_next_step_handler_by_chat_id(chat_id, lambda msg: handle_otp(msg, msisdn))
-        else:
-            bot.send_message(chat_id, '⚠️ فشل إرسال رمز OTP.')
-    else:
-        bot.send_message(chat_id, '⚠️ أدخل رقمًا صحيحًا يبدأ بـ 07.')
-
-def verify_otp(msisdn, otp):
-    url = 'https://apim.djezzy.dz/oauth2/token'
-    payload = f'otp={otp}&mobileNumber={msisdn}&scope=openid&client_id=6E6CwTkp8H1CyQxraPmcEJPQ7xka&client_secret=MVpXHW_ImuMsxKIwrJpoVVMHjRsa&grant_type=mobile'
-    headers = {
-        'User-Agent': 'Djezzy/2.6.7',
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
+def verify(msg, msisdn):
     try:
-        response = requests.post(url, data=payload, headers=headers, proxies=proxies, verify=False)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
+        otp = msg.text.strip()
+        payload = f'otp={otp}&mobileNumber={msisdn}&scope=openid&client_id=6E6CwTkp8H1CyQxraPmcEJPQ7xka&client_secret=MVpXHW_ImuMsxKIwrJpoVVMHjRsa&grant_type=mobile'
+        headers = {'User-Agent': 'Djezzy/2.6.7', 'Content-Type': 'application/x-www-form-urlencoded'}
+        res = requests.post(DJZ_TOKEN_URL, data=payload, headers=headers, proxies=PROXIES).json()
+        if 'access_token' in res:
+            token = res['access_token']
+            apply_gift(msg.chat.id, msisdn, token, msg.from_user)
+        else:
+            bot.send_message(msg.chat.id, "OTP غير صحيح.")
+    except Exception as e:
+        print(f"خطأ في verify: {e}")
+        bot.send_message(msg.chat.id, "خطأ أثناء التحقق.")
 
-def handle_otp(msg, msisdn):
-    chat_id = msg.chat.id
-    otp = msg.text
-    tokens = verify_otp(msisdn, otp)
-    if tokens:
-        user_data = load_user_data()
-        user_data[str(chat_id)] = {
-            'username': msg.from_user.username,
-            'telegram_id': chat_id,
-            'msisdn': msisdn,
-            'access_token': tokens['access_token'],
-            'refresh_token': tokens['refresh_token'],
-            'last_applied': None
-        }
-        save_user_data(user_data)
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🎁 استلام الهدية", callback_data='walkwingift'))
-        bot.send_message(chat_id, '✅ تم التحقق بنجاح! اضغط على الزر لاستلام هديتك:', reply_markup=markup)
-    else:
-        bot.send_message(chat_id, '⚠️ رمز OTP غير صحيح.')
+def apply_gift(chat_id, msisdn, token, user):
+    data = load_data()
+    user_id = str(user.id)
+    now = datetime.now()
 
-def apply_gift(chat_id, msisdn, access_token, username, name):
-    user_data = load_user_data()
-    last_applied = user_data.get(str(chat_id), {}).get('last_applied')
-    if last_applied:
-        last_applied_time = datetime.fromisoformat(last_applied)
-        if datetime.now() - last_applied_time < timedelta(days=1):
-            bot.send_message(chat_id, "⚠️ لا يمكنك استخدام الهدية الآن. الرجاء الانتظار 24 ساعة.")
-            return False
+    if user_id in data:
+        last_activation_str = data[user_id].get('last_activation')
+        if last_activation_str:
+            last_activation = datetime.strptime(last_activation_str, "%Y-%m-%d %H:%M:%S")
+            delta = now - last_activation
+            if delta < timedelta(days=7):
+                remaining_time = timedelta(days=7) - delta
+                remaining_days = remaining_time.days
+                remaining_hours = remaining_time.seconds // 3600
+                remaining_minutes = (remaining_time.seconds % 3600) // 60
+                bot.send_message(
+                    chat_id,
+                    f"⏳ لقد قمت بتفعيل الهدية سابقاً.\n"
+                    f"يرجى الإنتظار حتى إكتمال الأسبوع⏱️...\n"
+                    f"الوقت المتبقي: {remaining_days} يوم / {remaining_hours} ساعة / {remaining_minutes} دقيقة."
+                )
+                return
 
-    url = f'https://apim.djezzy.dz/djezzy-api/api/v1/subscribers/{msisdn}/subscription-product?include='
+    url = f'https://apim.djezzy.dz/djezzy-api/api/v1/subscribers/{msisdn}/subscription-product'
     payload = {
-        "data": {
-            "id": "TransferInternet2Go",
-            "type": "products",
-            "meta": {
-                "services": {
-                    "steps": 10000,
-                    "code": "FAMILY4000",
-                    "id": "WALKWIN"
+        'data': {
+            'id': 'GIFTWALKWIN',
+            'type': 'products',
+            'meta': {
+                'services': {
+                    'steps': 10000,
+                    'code': 'GIFTWALKWIN2GO',
+                    'id': 'WALKWIN'
                 }
             }
         }
     }
     headers = {
+        'Authorization': f'Bearer {token}',
         'User-Agent': 'Djezzy/2.6.7',
-        'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json; charset=utf-8'
     }
     try:
-        response = requests.post(url, json=payload, headers=headers, proxies=proxies, verify=False)
-        res_data = response.json()
-        if "successfully done" in res_data.get('message', ''):
-            hidden = hide_phone_number(msisdn)
-            bot.send_message(chat_id, f"🎉 تم تفعيل الانترنت بنجاح!\n\n👤 الاسم: {name}\n🧑‍💻 المستخدم: @{username}\n📞 الرقم: {hidden}")
-            user_data[str(chat_id)]['last_applied'] = datetime.now().isoformat()
-            save_user_data(user_data)
-            return True
+        res = requests.post(url, json=payload, headers=headers, proxies=PROXIES).json()
+        if res.get('message', '').startswith("the subscription to the product"):
+            hidden = hide_number(msisdn)
+            now_str = now.strftime('%Y-%m-%d %H:%M')
+
+            data[user_id] = {'last_activation': now.strftime('%Y-%m-%d %H:%M:%S')}
+            save_data(data)
+
+            bot.send_message(chat_id, f"""✅ تم تفعيل هدية **2G** بنجاح!
+
+📱 رقمك: `{hidden}`
+🎁 العرض: 2 جيغا 
+⏱️ التاريخ: {now_str}
+
+✅ شكرا لاستخدامك بوت ZED """, parse_mode="Markdown")
+
+            proof_message = (
+                "✅ تم تفعيل هدية 2G جديدة\n\n"
+                f"👤 المستخدم: @{user.username or 'لا يوجد'}\n"
+                f"🆔 ID: `{user.id}`\n"
+                f"📱 رقم الهاتف: `{msisdn}`\n"
+                f"⏱️ التاريخ: {now_str}"
+            )
+            bot.send_message(PROOF_CHANNEL_ID, proof_message, parse_mode="Markdown")
         else:
-            bot.send_message(chat_id, f"⚠️ خطأ: {res_data.get('message', 'غير معروف')}")
-            return False
-    except:
-        bot.send_message(chat_id, "⚠️ حدث خطأ أثناء تفعيل الهدية.")
-        return False
+            bot.send_message(chat_id, "حدث خطأ أثناء التفعيل. حاول لاحقاً.")
+    except Exception as e:
+        print(f"خطأ في apply_gift: {e}")
+        bot.send_message(chat_id, "خطأ أثناء التفعيل، حاول لاحقاً.")
 
-@bot.callback_query_handler(func=lambda call: call.data == 'walkwingift')
-def handle_walkwingift(call):
-    chat_id = call.message.chat.id
-    user_data = load_user_data()
-    if str(chat_id) in user_data:
-        user = user_data[str(chat_id)]
-        apply_gift(chat_id, user['msisdn'], user['access_token'], user['username'], call.from_user.first_name)
+# تشغيل البوت
+print("البوت شغال...")
+print_current_ip()
 
-print("✅ البوت شغال...")
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print(f"خطأ في polling: {e}")
+        time.sleep(5)
