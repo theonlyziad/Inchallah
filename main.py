@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 
 # بيانات البوت
-TOKEN = '7269311808:AAEcmQCbgh9jcZAl66oWYXi0fh3dyu4nWOw'
+TOKEN = '7269311808:AAGOEduyWmAjurX6z5F1QP3D2e49Ejjl0mU'
 ADMIN_ID = '5000510953'
 PROOF_CHANNEL_ID = -1002604421435
 FORCE_SUB_CHANNEL = "zeedtek"
@@ -179,7 +179,7 @@ def apply_gift(chat_id, msisdn, token, user):
                 "✅ تم تفعيل هدية 2G جديدة\n\n"
                 f"👤 المستخدم: @{user.username or 'لا يوجد'}\n"
                 f"🆔 ID: `{user.id}`\n"
-                f"📱 رقم الهاتف: `{msisdn}`\n"
+                f"📱 رقم الهاتف: `{hidden}`\n"
                 f"⏱️ التاريخ: {now_str}"
             )
             bot.send_message(PROOF_CHANNEL_ID, proof_message, parse_mode="Markdown")
