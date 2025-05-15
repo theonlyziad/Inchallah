@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 
 # بيانات البوت
-TOKEN = '7269311808:AAGOEduyWmAjurX6z5F1QP3D2e49Ejjl0mU'
+TOKEN = '7269311808:AAGqrdBAJeFPbmiVotSb2Rus4_ktg5BjNac'
 ADMIN_ID = '5000510953'
 PROOF_CHANNEL_ID = -1002604421435
 FORCE_SUB_CHANNEL = "zeedtek"
