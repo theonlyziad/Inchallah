@@ -5,27 +5,12 @@ import os
 import time
 from datetime import datetime, timedelta
 
-# بيانات البوت
 TOKEN = '7269311808:AAGqrdBAJeFPbmiVotSb2Rus4_ktg5BjNac'
 ADMIN_ID = '5000510953'
 PROOF_CHANNEL_ID = -1002604421435
-FORCE_SUB_CHANNEL = "zeedtek"
+FORCE_SUB_CHANNEL = "zeedtek"  # بدون @
 DJZ_REGISTRATION_URL = 'https://apim.djezzy.dz/oauth2/registration'
 DJZ_TOKEN_URL = 'https://apim.djezzy.dz/oauth2/token'
-
-# إعدادات البروكسي
-PROXIES = {
-    'http': 'http://4ozf98d598meqlt-country-dz:whdeajejjowefz3@rp.scrapegw.com:6060',
-    'https': 'http://4ozf98d598meqlt-country-dz:whdeajejjowefz3@rp.scrapegw.com:6060'
-}
-
-# طباعة IP المتصل به
-def print_current_ip():
-    try:
-        ip = requests.get("http://ipinfo.io/ip", proxies=PROXIES).text.strip()
-        print(f"عنوان IP الحالي المستخدم: {ip}")
-    except Exception as e:
-        print(f"خطأ في جلب IP: {e}")
 
 bot = telebot.TeleBot(TOKEN)
 data_file = 'users.json'
@@ -69,7 +54,7 @@ def start(msg):
             return
 
         markup = telebot.types.ForceReply(selective=False)
-        welcome = "مرحبا بك في بوت aissa"
+        welcome = "مرحبا بك في بوت Zed djezzy "
         bot.send_message(msg.chat.id, welcome, reply_markup=markup)
         bot.register_next_step_handler_by_chat_id(msg.chat.id, get_number)
     except Exception as e:
@@ -95,7 +80,7 @@ def send_otp(msisdn):
     payload = f'msisdn={msisdn}&client_id=6E6CwTkp8H1CyQxraPmcEJPQ7xka&scope=smsotp'
     headers = {'User-Agent': 'Djezzy/2.6.7', 'Content-Type': 'application/x-www-form-urlencoded'}
     try:
-        res = requests.post(DJZ_REGISTRATION_URL, data=payload, headers=headers, proxies=PROXIES)
+        res = requests.post(DJZ_REGISTRATION_URL, data=payload, headers=headers)
         return res.status_code == 200
     except Exception as e:
         print(f"خطأ في send_otp: {e}")
@@ -106,7 +91,7 @@ def verify(msg, msisdn):
         otp = msg.text.strip()
         payload = f'otp={otp}&mobileNumber={msisdn}&scope=openid&client_id=6E6CwTkp8H1CyQxraPmcEJPQ7xka&client_secret=MVpXHW_ImuMsxKIwrJpoVVMHjRsa&grant_type=mobile'
         headers = {'User-Agent': 'Djezzy/2.6.7', 'Content-Type': 'application/x-www-form-urlencoded'}
-        res = requests.post(DJZ_TOKEN_URL, data=payload, headers=headers, proxies=PROXIES).json()
+        res = requests.post(DJZ_TOKEN_URL, data=payload, headers=headers).json()
         if 'access_token' in res:
             token = res['access_token']
             apply_gift(msg.chat.id, msisdn, token, msg.from_user)
@@ -121,6 +106,7 @@ def apply_gift(chat_id, msisdn, token, user):
     user_id = str(user.id)
     now = datetime.now()
 
+    # التحقق من مرور 7 أيام
     if user_id in data:
         last_activation_str = data[user_id].get('last_activation')
         if last_activation_str:
@@ -159,22 +145,25 @@ def apply_gift(chat_id, msisdn, token, user):
         'Content-Type': 'application/json; charset=utf-8'
     }
     try:
-        res = requests.post(url, json=payload, headers=headers, proxies=PROXIES).json()
+        res = requests.post(url, json=payload, headers=headers).json()
         if res.get('message', '').startswith("the subscription to the product"):
             hidden = hide_number(msisdn)
             now_str = now.strftime('%Y-%m-%d %H:%M')
 
+            # حفظ تاريخ التفعيل
             data[user_id] = {'last_activation': now.strftime('%Y-%m-%d %H:%M:%S')}
             save_data(data)
 
+            # رسالة للمستخدم
             bot.send_message(chat_id, f"""✅ تم تفعيل هدية **2G** بنجاح!
 
 📱 رقمك: `{hidden}`
 🎁 العرض: 2 جيغا 
 ⏱️ التاريخ: {now_str}
 
-✅ شكرا لاستخدامك بوت ZED """, parse_mode="Markdown")
+✅ شكرا لاستخدامك بوت ZED""", parse_mode="Markdown")
 
+            # إثبات في القناة
             proof_message = (
                 "✅ تم تفعيل هدية 2G جديدة\n\n"
                 f"👤 المستخدم: @{user.username or 'لا يوجد'}\n"
@@ -189,9 +178,7 @@ def apply_gift(chat_id, msisdn, token, user):
         print(f"خطأ في apply_gift: {e}")
         bot.send_message(chat_id, "خطأ أثناء التفعيل، حاول لاحقاً.")
 
-# تشغيل البوت
 print("البوت شغال...")
-print_current_ip()
 
 while True:
     try:
